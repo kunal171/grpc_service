@@ -53,11 +53,13 @@ impl TaskService for MyTaskService {
         };
 
         let mut tasks = self.tasks.lock().await;
-        tasks.insert(id.clone(), task.clone());
+        tasks.insert(id, task.clone());
 
         Ok(Response::new(task))
     }
 
+
+    
     async fn list_tasks(
         &self,
         _request: Request<ListTasksRequest>,
