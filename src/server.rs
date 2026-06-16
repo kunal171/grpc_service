@@ -59,6 +59,19 @@ impl TaskService for MyTaskService {
     }
 
 
+    async fn get_task(
+        &self,
+        request: Request<GetTaskRequest>,
+    ) -> Result<Response<Task>, Status> {
+        let id = request.into_inner().id;
+
+        let tasks = self.tasks.lock().await;
+        match tasks.get(&id) {
+            Some(task) => Ok(Response::new(task.clone())),
+            None => Err(Status::not_found(format!("task {} not found", id))),
+        }
+    }
+
     
     async fn list_tasks(
         &self,
