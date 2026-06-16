@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package task;
+
+//the status of task 
+
+enum TaskStatus {
+    PENDING = 0;
+    IN_PROGRESS = 1;
+    COMPLETED = 2;
+    FAILED = 3;
+}
+
+// A single task message
+message Task {
+    string id = 1;
+    string title = 2;
+    string description = 3;
+    TaskStatus status = 4;
+}
+
+//request/response messages for each RPC
+message CreateTaskRequest {
+    string title = 1;
+    string description = 2;
+}
+
+message GetTaskRequest {
+  string id = 1;
+}
+
+message ListTasksRequest {}
+
+message ListTasksResponse {
+  repeated Task tasks = 1;
+}
+
+message DeleteTaskRequest {
+  string id = 1;
+}
+
+message DeleteTaskResponse {}
+
+// The service definition — these become trait methods in Rust
+service TaskService {
+  rpc CreateTask(CreateTaskRequest) returns (Task);
+  rpc GetTask(GetTaskRequest) returns (Task);
+  rpc ListTasks(ListTasksRequest) returns (ListTasksResponse);
+  rpc DeleteTask(DeleteTaskRequest) returns (DeleteTaskResponse);
+}
