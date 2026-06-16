@@ -14,7 +14,7 @@ use crate::task::{
 /// In-memory task storage across multiple threads.
 /// 
 pub struct MyTaskService {
-    tasks: Arc<Mutex<HashMap<u64, Task>>>,
+    tasks: Arc<Mutex<HashMap<String, Task>>>,
     next_id: Arc<Mutex<u64>>,
 }
 
@@ -72,7 +72,7 @@ impl TaskService for MyTaskService {
         }
     }
 
-    
+
     async fn list_tasks(
         &self,
         _request: Request<ListTasksRequest>,
