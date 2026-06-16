@@ -67,4 +67,18 @@ impl TaskService for MyTaskService {
 
         Ok(Response::new(ListTasksResponse { tasks: task_list }))
     }
+
+    async fn delete_task(
+        &self,
+        request: Request<DeleteTaskRequest>,
+    ) -> Result<Response<DeleteTaskResponse>, Status> {
+        let id = request.into_inner().id;
+
+        let mut tasks = self.tasks.lock().await;
+        if tasks.remove(&id).is_some() {
+            Ok(Response::new(DeleteTaskResponse {}))
+        } else {
+            Err(Status::not_found(format!("task {} not found", id)))
+        }
+    }
 }
