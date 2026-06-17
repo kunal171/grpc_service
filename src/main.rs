@@ -1,4 +1,5 @@
 mod server;
+mod client;
 
 // Include the generated protobuf code
 pub mod task {
