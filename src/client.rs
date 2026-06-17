@@ -31,6 +31,30 @@ pub async fn run_client(addr: &str) -> Result<(), Box<dyn std::error::Error>> {
         .await?
         .into_inner();
     println!("[client] fetched task: {:?}", fetched);
+
+// 3. List all tasks
+    let all = client
+        .list_tasks(ListTasksRequest {})
+        .await?
+        .into_inner();
+    println!("[client] total tasks: {}", all.tasks.len());
+    for t in &all.tasks {
+        println!("  {} — {} (status: {})", t.id, t.title, t.status);
+    }
+
+    // 4. Delete a task
+    client
+        .delete_task(DeleteTaskRequest { id: task2.id.clone() })
+        .await?;
+    println!("[client] deleted: {}", task2.id);
+
+    // 5. List again to confirm deletion
+    let remaining = client
+        .list_tasks(ListTasksRequest {})
+        .await?
+        .into_inner();
+    println!("[client] tasks after delete: {}", remaining.tasks.len());
+
     
     Ok(())
 }
