@@ -25,6 +25,12 @@ pub async fn run_client(addr: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("[client] created: {} — {}", task2.id, task2.title);
 
     //2. Get a task by ID
+
+    let fetched = client
+        .get_task(GetTaskRequest { id: task1.id.clone() })
+        .await?
+        .into_inner();
+    println!("[client] fetched task: {:?}", fetched);
     
     Ok(())
 }
