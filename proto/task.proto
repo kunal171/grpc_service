@@ -53,6 +53,23 @@ message DeleteTaskRequest {
 
 message DeleteTaskResponse {}
 
+// A single operation in a batch — either create or delete
+message TaskOperation {
+  oneof operation {
+    CreateTaskRequest create = 1;
+    DeleteTaskRequest delete = 2;
+  }
+}
+
+// Result of a single batch operation
+message TaskResult {
+  bool success = 1;
+  string message = 2;
+  Task task = 3;  // populated on successful create, empty on delete
+}
+
+
+
 // The service definition — these become trait methods in Rust
 service TaskService {
   rpc CreateTask(CreateTaskRequest) returns (Task);
@@ -62,4 +79,7 @@ service TaskService {
 
   //Server-side streaming RPC for watching task events
   rpc WatchTasks(WatchTasksRequest) returns (stream TaskEvent);
+  //Bidirectional streaming RPC for batch operations
+  rpc BatchTasks(stream TaskOperation) returns (stream TaskResult);
+
 }

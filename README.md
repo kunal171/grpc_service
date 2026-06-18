@@ -44,14 +44,15 @@ Defined in `proto/task.proto`. Messages:
 - `ListTasksRequest` — (empty)
 - `DeleteTaskRequest` — id
 
-Service RPCs (Milestone 1 — all unary):
+Service RPCs:
 
 ```protobuf
 service TaskService {
-  rpc CreateTask(CreateTaskRequest) returns (Task);
-  rpc GetTask(GetTaskRequest) returns (Task);
-  rpc ListTasks(ListTasksRequest) returns (ListTasksResponse);
-  rpc DeleteTask(DeleteTaskRequest) returns (DeleteTaskResponse);
+  rpc CreateTask(CreateTaskRequest) returns (Task);              // unary
+  rpc GetTask(GetTaskRequest) returns (Task);                    // unary
+  rpc ListTasks(ListTasksRequest) returns (ListTasksResponse);   // unary
+  rpc DeleteTask(DeleteTaskRequest) returns (DeleteTaskResponse); // unary
+  rpc WatchTasks(WatchTasksRequest) returns (stream TaskEvent);  // server streaming
 }
 ```
 
