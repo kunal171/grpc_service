@@ -4,19 +4,21 @@ use tokio::sync::{Mutex, broadcast};
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::StreamExt;
 
-use tonic::{Request, Response, Status};
+use tonic::{Request, Response, Status, Streaming};
 
 use crate::task::task_service_server::TaskService;
 
 use crate::task::{
     CreateTaskRequest, DeleteTaskRequest, DeleteTaskResponse,
     GetTaskRequest, ListTasksRequest, ListTasksResponse, Task, TaskStatus, EventType, TaskEvent,
-    WatchTasksRequest
+    WatchTasksRequest, TaskResult, TaskOperation, task_operation::Operation
 };
 
 type WatchStream = std::pin::Pin<Box<dyn tokio_stream::Stream<Item = Result<TaskEvent, Status>> + Send>>; 
+
+type BatchTasksStream = std::pin::Pin<Box<dyn tokio_stream::Stream<Item = Result<TaskResult, Status>> + Send>>;
+
 /// In-memory task storage across multiple threads.
-/// 
 pub struct MyTaskService {
     tasks: Arc<Mutex<HashMap<String, Task>>>,
     next_id: Arc<Mutex<u64>>,
