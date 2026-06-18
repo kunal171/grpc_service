@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{Mutex, broadcast};
+use tokio_stream::wrappers::BroadcastStream;
+use tokio_stream::StreamExt;
 
 use tonic::{Request, Response, Status};
 
@@ -9,8 +11,10 @@ use crate::task::task_service_server::TaskService;
 use crate::task::{
     CreateTaskRequest, DeleteTaskRequest, DeleteTaskResponse,
     GetTaskRequest, ListTasksRequest, ListTasksResponse, Task, TaskStatus, EventType, TaskEvent,
+    WatchTasksRequest
 };
 
+type WatchStream = std::pin::Pin<Box<dyn tokio_stream::Stream<Item = Result<TaskEvent, Status>> + Send>>; 
 /// In-memory task storage across multiple threads.
 /// 
 pub struct MyTaskService {
@@ -108,5 +112,20 @@ impl TaskService for MyTaskService {
         } else {
             Err(Status::not_found(format!("task {} not found", id)))
         }
+    }
+    
+    type WatchTasksStream = WatchStream;
+    async fn watch_tasks(
+        &self,
+        _request: Request<WatchTasksRequest>,
+    ) -> Result<Response<Self::WatchTasksStream>, Status> {
+        let rx = self.event_tx.subscribe();
+
+        // Wrap the broadcast receiver in a Stream, map errors to gRPC Status
+        let stream = BroadcastStream::new(rx).map(|result| {
+            result.map_err(|e| Status::internal(format!("stream error: {}", e)))
+        });
+
+        Ok(Response::new(Box::pin(stream)))
     }
 }

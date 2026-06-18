@@ -1,5 +1,8 @@
+use tokio::sync::watch;
+use tokio_stream::StreamExt;
+
 use crate::task::task_service_client::TaskServiceClient;
-use crate::task::{CreateTaskRequest, GetTaskRequest, ListTasksRequest, DeleteTaskRequest};
+use crate::task::{CreateTaskRequest, DeleteTaskRequest, GetTaskRequest, ListTasksRequest, WatchTasksRequest};
 
 pub async fn run_client(addr: &str) -> Result<(), Box<dyn std::error::Error>> {
     let mut client = TaskServiceClient::connect(addr.to_string()).await?;
@@ -55,6 +58,41 @@ pub async fn run_client(addr: &str) -> Result<(), Box<dyn std::error::Error>> {
         .into_inner();
     println!("[client] tasks after delete: {}", remaining.tasks.len());
 
-    
+    //6. Watch for task events
+    println!("[client] starting to watch for task events...");
+    let mut stream = client.watch_tasks(WatchTasksRequest{})
+        .await?
+        .into_inner();  
+
+    // Spawn a task to listen for events
+    let watch_handle = tokio::spawn(async move {
+        while let Some(event) = stream.next().await {
+           match event {
+               Ok(e) => {
+                    let task = e.task.unwrap_or_default();
+                    let event_type = if e.event_type == 0 { "Created" } else { "Deleted" };
+                    println!("[client] event: {} — {} (status: {})", event_type, task.title, task.status);
+                }
+                Err(e) => {
+                    eprintln!("[client] error receiving event: {:?}", e);
+               }
+           }
+        }
+    });
+
+
+    // Create and delete a task while the watcher is running
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    let new_task = client.create_task(CreateTaskRequest {
+        title: "watched task".to_string(),
+        description: "should trigger a watcher event".to_string(),
+    }).await?.into_inner();
+
+    client.delete_task(DeleteTaskRequest { id: new_task.id }).await?;
+
+    // Give watcher time to receive events then stop
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    watch_handle.abort();
+
     Ok(())
 }
