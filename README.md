@@ -3,14 +3,13 @@
 A task management service built in Rust using Tonic (gRPC) and Protocol Buffers,
 supporting unary RPCs, server streaming, and bidirectional streaming.
 
-## What It Will Do
+## What It Does
 
-- Define a task management API using Protocol Buffers
-- Implement unary RPCs: create, get, list, delete tasks
-- Server streaming: watch for task status changes in real-time
-- Bidirectional streaming: batch task operations with live progress
+- Defines a task management API using Protocol Buffers
+- Implements unary RPCs: create, get, list, delete tasks
 - In-memory storage with shared state
-- CLI client for interacting with the service
+- CLI client for interacting with all endpoints
+- Server streaming and bidirectional streaming (Milestones 2–3)
 
 ## Architecture
 
@@ -20,7 +19,7 @@ Client ──gRPC──→ Server (127.0.0.1:50051)
              TaskService
                    │
             In-memory store
-          (Arc<Mutex<HashMap>>)
+          (Arc<Mutex<HashMap<String, Task>>>)
 ```
 
 ## Project Structure
@@ -29,19 +28,42 @@ Client ──gRPC──→ Server (127.0.0.1:50051)
 proto/
 └── task.proto    — Protocol Buffer service and message definitions
 src/
-├── main.rs       — gRPC server entry point
-└── server.rs     — TaskService trait implementation (create, get, list, delete)
+├── main.rs       — CLI dispatch: server or client
+├── server.rs     — TaskService trait implementation
+└── client.rs     — gRPC client that exercises all RPCs
 build.rs          — tonic-build protobuf code generation
 ```
 
-## Implemented So Far
+## Wire Protocol
 
-- `proto/task.proto` — Task message, TaskStatus enum, 4 unary RPCs (CreateTask, GetTask, ListTasks, DeleteTask)
-- `build.rs` — compiles `.proto` to Rust code at build time via tonic-build
-- `server.rs` — `MyTaskService` with in-memory `HashMap<String, Task>` storage, input validation, gRPC status codes
-- `main.rs` — starts the gRPC server on port 50051
+Defined in `proto/task.proto`. Messages:
 
-Milestone 1 in progress — server implemented, client pending.
+- `Task` — id, title, description, status (Pending/InProgress/Completed)
+- `CreateTaskRequest` — title, description
+- `GetTaskRequest` — id
+- `ListTasksRequest` — (empty)
+- `DeleteTaskRequest` — id
+
+Service RPCs (Milestone 1 — all unary):
+
+```protobuf
+service TaskService {
+  rpc CreateTask(CreateTaskRequest) returns (Task);
+  rpc GetTask(GetTaskRequest) returns (Task);
+  rpc ListTasks(ListTasksRequest) returns (ListTasksResponse);
+  rpc DeleteTask(DeleteTaskRequest) returns (DeleteTaskResponse);
+}
+```
+
+## Usage
+
+```bash
+# Terminal 1: start the server
+cargo run -- server
+
+# Terminal 2: run the client
+cargo run -- client
+```
 
 ## Dependencies
 
@@ -61,7 +83,8 @@ tonic-build = "0.13"
 
 ```bash
 cargo build       # triggers protobuf code generation via build.rs
-cargo run          # start the server on 127.0.0.1:50051
+cargo run -- server
+cargo run -- client
 cargo check
 cargo test
 cargo fmt --check

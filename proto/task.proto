@@ -11,6 +11,18 @@ enum TaskStatus {
     FAILED = 3;
 }
 
+enum EventType {
+    CREATED = 0;
+    DELETED = 1;
+}
+
+message TaskEvent {
+  EventType event_type = 1;
+  Task task = 2;
+}
+
+message WatchTasksRequest {}
+
 // A single task message
 message Task {
     string id = 1;
@@ -47,4 +59,7 @@ service TaskService {
   rpc GetTask(GetTaskRequest) returns (Task);
   rpc ListTasks(ListTasksRequest) returns (ListTasksResponse);
   rpc DeleteTask(DeleteTaskRequest) returns (DeleteTaskResponse);
+
+  //Server-side streaming RPC for watching task events
+  rpc WatchTasks(WatchTasksRequest) returns (stream TaskEvent);
 }
