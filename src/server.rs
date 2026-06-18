@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, broadcast};
 
 use tonic::{Request, Response, Status};
 
@@ -8,7 +8,7 @@ use crate::task::task_service_server::TaskService;
 
 use crate::task::{
     CreateTaskRequest, DeleteTaskRequest, DeleteTaskResponse,
-    GetTaskRequest, ListTasksRequest, ListTasksResponse, Task, TaskStatus,
+    GetTaskRequest, ListTasksRequest, ListTasksResponse, Task, TaskStatus, EventType, TaskEvent,
 };
 
 /// In-memory task storage across multiple threads.
@@ -16,13 +16,17 @@ use crate::task::{
 pub struct MyTaskService {
     tasks: Arc<Mutex<HashMap<String, Task>>>,
     next_id: Arc<Mutex<u64>>,
+    // Sender half — broadcast task events to all active watchers
+    event_tx: broadcast::Sender<TaskEvent>,
 }
 
 impl MyTaskService {
     pub fn new() -> Self {
+        let (event_tx, _) = broadcast::channel(100); // Buffer size for task events
         MyTaskService {
             tasks: Arc::new(Mutex::new(HashMap::new())),
             next_id: Arc::new(Mutex::new(1)),
+            event_tx,
         }
     }
 }
@@ -54,6 +58,11 @@ impl TaskService for MyTaskService {
 
         let mut tasks = self.tasks.lock().await;
         tasks.insert(id, task.clone());
+
+        let _ = self.event_tx.send(TaskEvent {
+            event_type: EventType::Created as i32,
+            task: Some(task.clone()),
+        });
 
         Ok(Response::new(task))
     }
@@ -91,6 +100,10 @@ impl TaskService for MyTaskService {
 
         let mut tasks = self.tasks.lock().await;
         if tasks.remove(&id).is_some() {
+            let _ = self.event_tx.send(TaskEvent {
+                event_type: EventType::Deleted as i32,
+                task: Some(Task { id: id.clone(), ..Default::default() }),
+            });
             Ok(Response::new(DeleteTaskResponse {}))
         } else {
             Err(Status::not_found(format!("task {} not found", id)))
