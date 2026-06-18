@@ -1,4 +1,3 @@
-use tokio::sync::watch;
 use tokio_stream::StreamExt;
 
 use crate::task::task_service_client::TaskServiceClient;
