@@ -16,8 +16,6 @@ use crate::task::{
 
 type WatchStream = std::pin::Pin<Box<dyn tokio_stream::Stream<Item = Result<TaskEvent, Status>> + Send>>; 
 
-type BatchTasksStream = std::pin::Pin<Box<dyn tokio_stream::Stream<Item = Result<TaskResult, Status>> + Send>>;
-
 /// In-memory task storage across multiple threads.
 pub struct MyTaskService {
     tasks: Arc<Mutex<HashMap<String, Task>>>,
@@ -39,6 +37,10 @@ impl MyTaskService {
 
 #[tonic::async_trait]
 impl TaskService for MyTaskService {
+    
+    type BatchTasksStream = std::pin::Pin<
+        Box<dyn tokio_stream::Stream<Item = Result<TaskResult, Status>> + Send>
+    >;
     async fn create_task(
         &self,
         request: Request<CreateTaskRequest>,
@@ -129,5 +131,83 @@ impl TaskService for MyTaskService {
         });
 
         Ok(Response::new(Box::pin(stream)))
+    }
+
+    async fn batch_tasks(
+        &self,
+        request: Request<Streaming<TaskOperation>>,
+    ) -> Result<Response<Self::BatchTasksStream>, Status> {
+        let mut inbound = request.into_inner();
+
+        // Clone what we need to move into the stream
+        let tasks = self.tasks.clone();
+        let next_id = self.next_id.clone();
+        let event_tx = self.event_tx.clone();
+
+        let output = async_stream::try_stream! {
+            while let Some(op) = inbound.message().await? {
+                let result = match op.operation {
+                    Some(Operation::Create(req)) => {
+                        if req.title.is_empty() {
+                            TaskResult {
+                                success: false,
+                                message: "title is required".to_string(),
+                                task: None,
+                            }
+                        } else {
+                            let mut id_counter = next_id.lock().await;
+                            let id = format!("task-{}", *id_counter);
+                            *id_counter += 1;
+                            drop(id_counter);
+
+                            let task = Task {
+                                id: id.clone(),
+                                title: req.title,
+                                description: req.description,
+                                status: TaskStatus::Pending as i32,
+                            };
+                            tasks.lock().await.insert(id, task.clone());
+                            let _ = event_tx.send(TaskEvent {
+                                event_type: EventType::Created as i32,
+                                task: Some(task.clone()),
+                            });
+                            TaskResult {
+                                success: true,
+                                message: "created".to_string(),
+                                task: Some(task),
+                            }
+                        }
+                    }
+                    Some(Operation::Delete(req)) => {
+                        let removed = tasks.lock().await.remove(&req.id);
+                        if let Some(task) = removed {
+                            let _ = event_tx.send(TaskEvent {
+                                event_type: EventType::Deleted as i32,
+                                task: Some(task.clone()),
+                            });
+                            TaskResult {
+                                success: true,
+                                message: format!("deleted {}", req.id),
+                                task: Some(task),
+                            }
+                        } else {
+                            TaskResult {
+                                success: false,
+                                message: format!("task {} not found", req.id),
+                                task: None,
+                            }
+                        }
+                    }
+                    None => TaskResult {
+                        success: false,
+                        message: "empty operation".to_string(),
+                        task: None,
+                    },
+                };
+                yield result;
+            }
+        };
+
+        Ok(Response::new(Box::pin(output)))
     }
 }
