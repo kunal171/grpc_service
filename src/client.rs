@@ -1,7 +1,7 @@
-use tokio_stream::StreamExt;
+use tokio_stream::{StreamExt, iter};
 
 use crate::task::task_service_client::TaskServiceClient;
-use crate::task::{CreateTaskRequest, DeleteTaskRequest, GetTaskRequest, ListTasksRequest, WatchTasksRequest};
+use crate::task::{CreateTaskRequest, DeleteTaskRequest, GetTaskRequest, ListTasksRequest, WatchTasksRequest,TaskOperation, task_operation::Operation};
 
 pub async fn run_client(addr: &str) -> Result<(), Box<dyn std::error::Error>> {
     let mut client = TaskServiceClient::connect(addr.to_string()).await?;
@@ -93,5 +93,43 @@ pub async fn run_client(addr: &str) -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
     watch_handle.abort();
 
+    //7. Batch operations (create multiple tasks in one request)
+    println!("[client] starting batch operations...");
+
+    // Build a stream of operations to send
+    let operations = vec![
+        TaskOperation {
+            operation: Some(Operation::Create(CreateTaskRequest {
+                title: "batch task 1".to_string(),
+                description: "created via batch".to_string(),
+            })),
+        },
+        TaskOperation {
+            operation: Some(Operation::Create(CreateTaskRequest {
+                title: "batch task 2".to_string(),
+                description: "created via batch".to_string(),
+            })),
+        },
+        TaskOperation {
+            operation: Some(Operation::Delete(DeleteTaskRequest {
+                id: task1.id.clone(),
+            })),
+        },
+    ];
+
+    let mut results = client
+        .batch_tasks(iter(operations))
+        .await?
+        .into_inner();
+
+    while let Some(result) = results.next().await {
+        match result {
+            Ok(r) => {
+                let task_info = r.task.map(|t| format!(" — {}", t.title)).unwrap_or_default();
+                println!("[batch] success={} msg={}{}", r.success, r.message, task_info);
+            }
+            Err(e) => println!("[batch] error: {}", e),
+        }
+    }
     Ok(())
 }
